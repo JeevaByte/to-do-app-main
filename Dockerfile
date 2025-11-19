@@ -1,12 +1,33 @@
-FROM node:18-alpine
+# -----------------------------
+# Stage 1: Build the React app
+# -----------------------------
+FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm ci --only=production
+# Copy only the frontend package files first (better caching)
+COPY frontend/package*.json ./frontend/
 
-COPY . .
+# Install dependencies
+RUN cd frontend && npm install
 
-EXPOSE 3000
+# Copy full frontend source
+COPY frontend ./frontend
 
-CMD ["npm", "start"]
+# Build React app
+RUN cd frontend && npm run build
+
+
+
+# -----------------------------
+# Stage 2: Serve with NGINX
+# -----------------------------
+FROM nginx:alpine
+
+# Copy build output from builder stage
+COPY --from=builder /app/frontend/build /usr/share/nginx/html
+
+EXPOSE 80
+
+# Run NGINX
+CMD ["nginx", "-g", "daemon off;"]
